@@ -1,0 +1,9 @@
+image,clean_valid_count,tampered_valid_count,tampered_share_rejected,valid_shares_remaining
+airplane,4,3,True,3
+baboon,4,3,True,3
+boat,4,3,True,3
+couple,4,3,True,3
+elaine,4,3,True,3
+man,4,3,True,3
+peppers,4,3,True,3
+sailboat,4,3,True,3

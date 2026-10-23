@@ -1,0 +1,47 @@
+import io
+
+import cv2
+import numpy as np
+from fastapi.testclient import TestClient
+
+from api.main import app
+
+
+def _png_bytes() -> bytes:
+    image = np.arange(512 * 512, dtype=np.uint8).reshape(512, 512)
+    ok, encoded = cv2.imencode(".png", image)
+    assert ok
+    return encoded.tobytes()
+
+
+def test_api_owner_and_recovery_flow():
+    client = TestClient(app)
+    response = client.post(
+        "/api/owner/encode",
+        files={"file": ("image.png", _png_bytes(), "image/png")},
+        data={"seed": "21", "predictor": "med", "top": "300", "left": "300", "height": "60", "width": "40"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["shares"]) == 4
+    for stage, indexes in ((1, [0, 1, 2]), (2, [0, 1, 2, 3]), (3, [0, 1, 2, 3])):
+        recovered = client.post("/api/receiver/recover", json={"jobId": body["jobId"], "stage": stage, "shareIndexes": indexes})
+        assert recovered.status_code == 200
+        assert recovered.json()["exact"] is True
+
+
+def test_api_automatic_recovery_selects_valid_threshold_subset():
+    client = TestClient(app)
+    response = client.post(
+        "/api/owner/encode",
+        files={"file": ("image.png", _png_bytes(), "image/png")},
+        data={"seed": "22", "predictor": "med", "top": "300", "left": "300", "height": "60", "width": "40", "msa_mode": "auto_texture"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["msaMode"] == "auto_texture"
+    assert body["msaRect"]["height"] == 60
+    recovered = client.post("/api/receiver/recover-auto", json={"jobId": body["jobId"], "stage": 3, "shareIndexes": []})
+    assert recovered.status_code == 200
+    assert recovered.json()["exact"] is True
+    assert recovered.json()["usedIndexes"] == [0, 1, 2]

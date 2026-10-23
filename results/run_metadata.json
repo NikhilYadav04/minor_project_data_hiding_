@@ -1,0 +1,64 @@
+{
+  "master_seed": 2026,
+  "methods": [
+    "bilinear",
+    "edge_directed",
+    "med",
+    "cv2_bicubic"
+  ],
+  "image_names": [
+    "airplane",
+    "baboon",
+    "boat",
+    "couple",
+    "elaine",
+    "man",
+    "peppers",
+    "sailboat"
+  ],
+  "image_sources": {
+    "airplane": "bundled_public_substitute",
+    "baboon": "bundled_public_substitute",
+    "boat": "bundled_public_substitute",
+    "couple": "bundled_public_substitute",
+    "elaine": "bundled_public_substitute",
+    "man": "bundled_public_substitute",
+    "peppers": "bundled_public_substitute",
+    "sailboat": "bundled_public_substitute"
+  },
+  "image_shapes": {
+    "airplane": [
+      512,
+      512
+    ],
+    "baboon": [
+      512,
+      512
+    ],
+    "boat": [
+      512,
+      512
+    ],
+    "couple": [
+      512,
+      512
+    ],
+    "elaine": [
+      512,
+      512
+    ],
+    "man": [
+      512,
+      512
+    ],
+    "peppers": [
+      512,
+      512
+    ],
+    "sailboat": [
+      512,
+      512
+    ]
+  },
+  "quoted_bpp_source": "SPEC.md / He et al. 2026 Table III"
+}

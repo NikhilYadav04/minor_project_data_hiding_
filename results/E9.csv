@@ -1,0 +1,9 @@
+image,candidate_pairs_with_true_key,candidate_pairs_total,without_key_observation
+airplane,256,65536,not enumerable from a single sample
+baboon,256,65536,not enumerable from a single sample
+boat,256,65536,not enumerable from a single sample
+couple,256,65536,not enumerable from a single sample
+elaine,256,65536,not enumerable from a single sample
+man,256,65536,not enumerable from a single sample
+peppers,256,65536,not enumerable from a single sample
+sailboat,256,65536,not enumerable from a single sample

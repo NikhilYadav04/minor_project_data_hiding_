@@ -1,0 +1,7 @@
+image,area,height,width,fits,bpp_free
+airplane,256,16,16,True,5.32421875
+airplane,576,24,24,True,5.31903076171875
+airplane,1024,32,32,True,5.311920166015625
+airplane,2304,48,48,True,5.29107666015625
+airplane,4096,64,64,True,5.26202392578125
+airplane,6400,80,80,True,5.224822998046875

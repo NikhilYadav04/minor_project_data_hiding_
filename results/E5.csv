@@ -1,0 +1,9 @@
+image,wrong_key_rejected,stage3_exact,stage3_psnr
+airplane,True,True,inf
+baboon,True,True,inf
+boat,True,True,inf
+couple,True,True,inf
+elaine,True,True,inf
+man,True,True,inf
+peppers,True,True,inf
+sailboat,True,True,inf

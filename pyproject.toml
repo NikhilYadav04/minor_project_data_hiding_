@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pss-dr-dhei"
+version = "0.1.0"
+description = "Simplified deterministic reproduction of progressive secret image sharing"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "opencv-python-headless>=4.8",
+  "scikit-image>=0.21",
+  "pandas>=2.0",
+  "matplotlib>=3.7",
+  "streamlit>=1.28",
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.4", "httpx2>=0.1"]
+
+[tool.setuptools.packages.find]
+include = ["pss*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
