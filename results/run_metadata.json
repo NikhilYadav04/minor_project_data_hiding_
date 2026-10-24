@@ -4,7 +4,15 @@
     "bilinear",
     "edge_directed",
     "med",
-    "cv2_bicubic"
+    "cv2_bicubic",
+    "auto"
+  ],
+  "extension_experiments": [
+    "E12_adaptive_msa",
+    "E13_resilient_recovery",
+    "E14_auto_predictor",
+    "E15_threshold_matrix",
+    "E16_attack_matrix"
   ],
   "image_names": [
     "airplane",

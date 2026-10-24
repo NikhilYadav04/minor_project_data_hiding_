@@ -1,8 +1,18 @@
 # Testing guide
 
-This guide tests the completed **base implementation**. It does not test GICA or RCAN because those
-paper components are intentionally replaced by OpenCV Telea inpainting and deterministic integer
-predictors.
+This guide tests the completed **simplified reproduction and project extensions**. It does not test
+GICA or RCAN because those paper components are intentionally replaced by OpenCV Telea inpainting
+and deterministic integer predictors. The tests verify the behavior that is actually implemented.
+
+## Current verified status
+
+The latest local verification is:
+
+```text
+Python test suite: 30 passed
+React/Vite production build: successful
+Experiment outputs: E1–E16 generated
+```
 
 ## 1. Install the project
 
@@ -32,7 +42,7 @@ The suite covers:
 - GF(2^8) arithmetic and the paper's Fig. 5 vectors.
 - All four 3-of-4 share combinations.
 - Predictor properties and residual reconstruction.
-- Bilinear, edge-directed, MED, and bicubic predictor comparisons.
+- Bilinear, edge-directed, MED, bicubic, and automatic predictor comparisons.
 - Huffman round trips, including constant and all-symbol inputs.
 - Expansion, core payload extraction, data-hider CRC validation.
 - Stage 1, Stage 2, and Stage 3 recovery.
@@ -41,6 +51,7 @@ The suite covers:
 - Keyed integrity verification and tampered-share detection.
 - Presence, dimensions, and dtype of the eight bundled test images.
 - Owner-to-receiver backend smoke behavior used by the UI.
+- Adaptive MSA selection, automatic predictor selection, resilient recovery, and extension APIs.
 
 ## 3. Run a deterministic CLI demonstration
 
@@ -126,6 +137,11 @@ results/E8.csv
 results/E9.csv
 results/E10.csv
 results/E11.csv
+results/E12.csv
+results/E13.csv
+results/E14.csv
+results/E15.csv
+results/E16.csv
 results/run_metadata.json
 figures/E2_bpp.png
 figures/E4_overview.png
@@ -136,7 +152,8 @@ figures/E8_embedding_rate.png
 
 `E8.csv` contains the predictor comparison, including MED.
 
-`E11.csv` contains the tampered-share detection results.
+`E11.csv` contains the tampered-share detection results. E12-E16 contain the project-extension
+experiments described in Sections 12 and 14.
 
 Check the correctness and data-hider results:
 
@@ -272,13 +289,17 @@ Verify this flow:
 2. Upload one of the eight files in `data/images/`.
 3. Drag across the image to create the amber MSA rectangle.
 4. Confirm the rectangle dimensions update while dragging.
-5. Choose `Bilinear`, `Edge directed`, and `MED` in separate runs.
-6. Confirm the masked image and four shares appear after **Create protected shares**.
-7. Open **Data hider**, add a short text payload, and extract it again.
-8. Open **Receiver** and run Stage 1, Stage 2, and Stage 3. The dashboard uses automatic
+5. Choose `Bilinear`, `Edge directed`, `MED`, and `Automatic best predictor` in separate runs.
+6. Try Manual, Automatic · texture, and Automatic · edges MSA modes. Confirm the selected
+   coordinates are displayed after **Create protected shares**.
+7. Confirm the masked image and four shares appear after **Create protected shares**.
+8. Open **Data hider**, add a short text payload, and extract it again.
+9. Open **Receiver** and run Stage 1, Stage 2, and Stage 3. The dashboard uses automatic
    valid-share selection for all stages and reports which threshold subset was used.
-9. Confirm each result reports an exact match.
-10. Open **Analysis** and confirm the entropy chart and share metrics table appear.
+10. Confirm each result reports an exact match and shows the used valid-share indexes.
+11. Open **Analysis** and confirm the entropy chart and share metrics table appear.
+12. Open **Research Summary** and confirm the baseline, extensions, predictor decision, MSA
+    coordinates, integrity state, and conclusion are shown.
 
 The backend integration test can be run without starting the server manually:
 
@@ -347,3 +368,60 @@ results/E13.csv
 
 E12 compares manual, texture-based, and edge-based MSA placement. E13 reports automatic recovery
 from one tampered share and one missing share for Stages 1, 2, and 3.
+
+
+## 13. Test automatic predictor selection
+
+Run:
+
+```bash
+python -m pytest tests/test_research_extensions.py -q
+python -m pytest tests/test_api.py -q
+```
+
+Choose `Automatic best predictor` in the React Owner workflow. The run should report the selected
+predictor and a comparison table containing bilinear, edge-directed, and MED compressed bit
+lengths. The selected method is the candidate with the shortest compressed residual stream, and
+Stage 3 must remain exact.
+
+## 14. Test the complete research experiment matrix
+
+Run the experiment module directly if the full suite is already familiar:
+
+```bash
+python -c "import experiments.run_all as r; images=r.load_images(); r.e14_auto_predictor(images); r.e15_threshold_matrix(images); r.e16_attack_matrix(images)"
+```
+
+Inspect:
+
+```text
+results/E14.csv
+results/E15.csv
+results/E16.csv
+```
+
+E14 records the automatic predictor decision and exact recovery. E15 tests all four combinations of
+three available shares for Stages 1, 2, and 3. E16 covers one-pixel tampering, block tampering, one
+missing share, two missing shares, wrong master key, wrong data-hider key, and a corrupted data-hider
+payload. The expected interpretation is recovery with one invalid/unavailable share and rejection
+when fewer than three valid shares remain.
+
+## 15. Use the Research Summary view
+
+Open the fifth dashboard step after creating shares. It summarizes the baseline reproduction, the
+three project extensions, the selected predictor, MSA coordinates, embedding room, integrity state,
+and the exact-recovery conclusion for the current live run.
+
+
+## 16. Documentation consistency check
+
+Before a presentation, confirm these files agree with the implementation:
+
+- `README.md` describes the current React/FastAPI dashboard and E1–E16 outputs.
+- `SPEC.md` distinguishes the paper-inspired baseline from project extensions.
+- `DEVIATIONS.md` records Telea, integer predictors, adaptive MSA, automatic predictor selection,
+  and three-share resilient code/MSA recovery.
+- `data/README.md` identifies the bundled images as public substitutes.
+
+The README is the professor-facing entry point; `TESTING.md` is the reproducibility procedure;
+`SPEC.md` and `DEVIATIONS.md` provide the technical and academic context.

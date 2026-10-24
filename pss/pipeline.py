@@ -24,6 +24,27 @@ class OwnerOutput:
     stats: dict
 
 
+PREDICTOR_CANDIDATES = ("bilinear", "edge_directed", "med")
+
+
+def _select_predictor(masked: np.ndarray, low: np.ndarray) -> tuple[str, list[dict[str, float | str]]]:
+    """Choose the predictor with the smallest compressed residual stream."""
+    trials: list[dict[str, float | str]] = []
+    for order, candidate in enumerate(PREDICTOR_CANDIDATES):
+        prediction = predict(low, candidate)
+        errors = residual(masked, prediction)
+        sequence = residual_sequence(errors)
+        compressed = compress_residuals(sequence)
+        trials.append({
+            "method": candidate,
+            "bit_length": int(compressed.bit_length),
+            "mean_abs_residual": float(np.mean(np.abs(sequence))),
+            "order": order,
+        })
+    best = min(trials, key=lambda row: (int(row["bit_length"]), float(row["mean_abs_residual"]), int(row["order"])))
+    return str(best["method"]), trials
+
+
 def _check_share_shapes(shares) -> tuple[int, int]:
     if not shares:
         raise InsufficientSharesError("no shares were supplied")
@@ -63,8 +84,12 @@ def owner_encode(
     msa = prepare_msa(image, selected_rect, keys.stream_seed("K_sc"))
     timings["t_inpaint"] = time.perf_counter() - start
 
+    requested_method = method
     start = time.perf_counter()
     low = get_lr(msa.masked)
+    predictor_candidates: list[dict[str, float | str]] = []
+    if method == "auto":
+        method, predictor_candidates = _select_predictor(msa.masked, low)
     high = predict(low, method)
     errors = residual(msa.masked, high)
     sequence = residual_sequence(errors)
@@ -115,6 +140,9 @@ def owner_encode(
             "bpp_free": max(0, 8 * (free_bytes - 8) / total_pixels),
             "free_bytes": free_bytes,
             "method": method,
+            "requested_method": requested_method,
+            "predictor_selection": "automatic" if requested_method == "auto" else "manual",
+            "predictor_candidates": predictor_candidates,
             "seed": keys.master_seed,
             "msa_mode": msa_mode,
             "msa_top": -1 if selected_rect is None else selected_rect[0],

@@ -38,8 +38,8 @@ Cloud and IoT systems store private images. This project implements a **progress
 |---|---|
 | fewer than *r* shares | nothing useful |
 | any *r* shares + LR key | **Stage 1:** low-resolution (LR) image, size M/2 × N/2 |
-| all *n* shares + LR key + code key | **Stage 2:** the *masked* image (full size, sensitive region replaced by fake content) |
-| all *n* shares + all keys + MSA key | **Stage 3:** the exact **original** image (lossless) |
+| any *r* valid shares + LR key + code key | **Stage 2:** the *masked* image (full size, sensitive region replaced by fake content) |
+| any *r* valid shares + all keys + MSA key | **Stage 3:** the exact **original** image (lossless) |
 
 The "most sensitive area" (MSA) is a rectangle (for example a face, a tank, a lesion) that is cut out, protected separately, and replaced by inpainted content in the masked image. The shares additionally have **spare room** in which a third party (a "data hider", e.g. a cloud server) can embed extra data (signatures, timestamps) without any key to the image, and that data can be extracted without recovering the image.
 
@@ -56,7 +56,7 @@ The "most sensitive area" (MSA) is a rectangle (for example a face, a tank, a le
 | 2×2 down-sampling to LR image | **Reproduced** | Core |
 | RCAN super-resolution predictor | **Replaced** by deterministic integer predictors (§5.5) | Training/running RCAN is infeasible in 4 days. Predictor must be bit-exact on sender and receiver. |
 | Prediction residual + Huffman coding with matching rules | **Reproduced** | Core |
-| Shamir sharing over GF(2⁸): (r,n) for LR, (n,n) for code and MSA | **Reproduced** | Core |
+| Shamir sharing over GF(2⁸) | **Baseline:** (r,n) for LR and paper-style full-share code/MSA streams. **Extension:** (r,n) for code and MSA as well. | The extension enables recovery after one missing or invalid share. |
 | 1×2 pixel-pair packing (c and a₁ carry data) | **Reproduced** | Core |
 | Expansion to 2×4 blocks, embedding in redundant pixels | **Reproduced** | Core |
 | Data hider with separate extraction | **Reproduced** | Core |
@@ -65,7 +65,7 @@ The "most sensitive area" (MSA) is a rectangle (for example a face, a tank, a le
 | Predictor ablation (paper: RCAN vs MED) | **Adapted**: our predictors vs each other | Paper Figs. 9–10 |
 | BOSSbase 10 000 images | **Dropped** (optional: small subset if available) | No training needed |
 | Comparison with 5 other schemes | **Quoted from paper's Table III**, clearly labelled as quoted | Not re-implemented |
-| GUI | **Reproduced as a small Streamlit demo** (§6.1) | Required by the team; built last, on top of the tested pipeline |
+| GUI | **Implemented as Streamlit fallback plus React/Vite/FastAPI research dashboard** | The React dashboard provides the professor-facing workflow, adaptive MSA controls, predictor evidence, integrity status, and Research Summary view. |
 
 > **Honesty rule:** the report must say "simplified reproduction". Embedding rates will differ from the paper because the predictor differs. Never claim to beat the paper or other schemes.
 
@@ -73,11 +73,11 @@ The "most sensitive area" (MSA) is a rectangle (for example a face, a tank, a le
 
 | Tier | Contents | Rule |
 |---|---|---|
-| **Tier 1 — must work** | Full pipeline with 3-stage lossless recovery, MSA, data hider, both predictors, security metrics (E1–E6), Streamlit UI with Owner / Data hider / Receiver tabs | Done by end of Day 3 |
-| **Tier 2 — makes the project stand out** | E7 MSA size sweep, E8 predictor ablation (3 predictors incl. cv2 bicubic), E9 ramp-leakage measurement (finding D3), E10 data-hider capacity test, canonical-Huffman header comparison, UI Metrics tab | Start only after Tier 1 passes; Day 3–4 |
-| **Tier 3 — stretch** | Tiny CNN predictor used only for the residual-entropy comparison (§6.2) | Only if everything else is finished; expect to drop it |
+| **Tier 1 — must work** | Full pipeline with 3-stage lossless recovery, MSA, data hider, integer predictors, security metrics, and tested UI | Complete |
+| **Tier 2 — research evaluation** | E7 MSA sweep, E8 predictor ablation, E9 leakage analysis, E10 data-hider capacity, E11 tamper detection | Complete |
+| **Tier 3 — project extensions** | Adaptive MSA (E12), resilient recovery (E13), automatic predictor selection (E14), threshold matrix (E15), attack matrix (E16), React/FastAPI dashboard and Research Summary | Complete |
 
-What impresses examiners: exact recovery proven on every share combination, a measured security analysis, discrepancies found in the published paper (D1–D3, D7) with evidence, a predictor ablation, and a working demo. This is depth, not volume.
+What the completed project demonstrates: exact recovery proven on every three-share combination, measured security and capacity analysis, explicit paper discrepancies with evidence, adaptive MSA placement, automatic predictor selection, tamper-aware recovery, attack evaluation, and a working professor-facing demo. This is depth, not volume.
 
 ---
 
@@ -261,8 +261,12 @@ C → 16-bit pairs: `C_bytes = packbits(C_padded)`, `pairs = C_bytes.reshape(-1,
 | Payload | Pairs | Threshold | Output per share |
 |---|---|---|---|
 | LR image | `L.reshape(-1,2)` → MN/8 pairs (c = left pixel, a₁ = right pixel) | (r, n) = (3, 4) | MN/8 bytes → shape (M/2, N/4) |
-| Compressed code C | `C_bytes.reshape(-1,2)` | (n, n) = (4, 4) | `S_C` : BITLEN/16 bytes (= half of padded C) |
-| MSA | `A_enc.reshape(-1,2)` | (n, n) = (4, 4) | `S_A` : len(A_enc)/2 bytes |
+| Compressed code C | `C_bytes.reshape(-1,2)` | **Baseline:** (n, n) = (4, 4); **extension:** (r, n) = (3, 4) | `S_C` : BITLEN/16 bytes (= half of padded C) |
+| MSA | `A_enc.reshape(-1,2)` | **Baseline:** (n, n) = (4, 4); **extension:** (r, n) = (3, 4) | `S_A` : len(A_enc)/2 bytes |
+
+The implemented research-extension recovery path uses any three valid shares for all three payloads.
+The strict legacy `recover_stage2` and `recover_stage3` functions still require four supplied shares
+and are retained for comparison and negative testing.
 
 ### 5.8 Expansion and embedding (`embed.py`)
 
@@ -275,14 +279,18 @@ C → 16-bit pairs: `C_bytes = packbits(C_padded)`, `pairs = C_bytes.reshape(-1,
 | 0–3 | `LEN_SC` : bytes of S_C (uint32) |
 | 4–7 | `LEN_SA` : bytes of S_A (uint32, 0 if no MSA) |
 | 8–11 | `BITLEN_C` (uint32) |
-| 12–15 | reserved = 0 |
+| 12–15 | keyed integrity tag (BLAKE2s, 4 bytes) |
 | 16 … | `S_C` bytes |
 | … | `S_A` bytes |
 | `F = 16 + LEN_SC + LEN_SA` … end | **free room** (random fill from the owner) |
 
 Assert capacity: `16 + LEN_SC + LEN_SA ≤ 7MN/8`, else raise `CapacityError` (tell the user the MSA is too large).
 
-The result after the owner's embedding is the **final share** `S_i` (shape (M, N), uint8).
+The result after the owner's embedding is the **final share** `S_i` (shape (M, N), uint8). The
+implementation authenticates the share after core embedding with a keyed BLAKE2s tag stored in the
+reserved header bytes. The tag covers the LR stream, compressed-code stream, MSA stream, metadata,
+and share index, but excludes the independent data-hider free room so valid data-hider embedding
+does not invalidate the share tag.
 
 **Data hider** (no image keys needed). For share i with additional data `D_i` (bytes) and hiding key `K_dh,i`:
 - Payload = `LEN (4 B) ‖ CRC32 (4 B) ‖ D_i`, all XOR-ed with `keystream(K_dh,i)`.
@@ -335,27 +343,35 @@ Each recovery function also returns/records its runtime. `rect=None` means no MS
 
 CLI demo:
 ```
-python -m pss.cli demo --image data/images/sailboat.png --rect 300 300 60 40 --seed 123 --method edge_directed --out out/
+python -m pss.cli demo --image data/images/sailboat.png --rect 300 300 60 40 --seed 123 --method auto --out out/
 ```
 Saves: original, masked, LR, shares 1–4 (expanded and final), and each recovered image; prints PASS/FAIL for exact equality at each stage and the bpp values.
 
-### 6.1 Streamlit demo UI (`app.py`)
+### 6.1 User interfaces
 
-Built **only after milestone M3 passes** (pipeline exact on all stages). The UI calls the public API of §6 and contains no algorithm logic. Keep it to one file, about 150 lines.
+The tested Python pipeline remains available through the Streamlit fallback. The primary
+professor-facing interface is a React/Vite dashboard backed by FastAPI; both interfaces call the
+algorithm layer rather than duplicating its logic. The dashboard adds an interactive MSA selector,
+automatic predictor evidence, integrity status, resilient recovery, analysis charts, and a Research
+Summary view.
 
-Sidebar: master seed, predictor choice (`bilinear` / `edge_directed`), (r, n) fixed at (3, 4).
+Sidebar/configuration: master seed, predictor choice (`bilinear` / `edge_directed` / `med` / `auto`), MSA mode (`manual` / `auto_texture` / `auto_edge`), and (r, n) fixed at (3, 4).
 
 Tabs:
-1. **Owner:** upload a grayscale image (auto-converted to 512×512), choose the MSA rectangle with four number inputs (top, left, height, width) and show a preview with the rectangle drawn. Button "Create shares". Shows the masked image, the 4 final shares (noise images), `bpp_paper`, `bpp_free` and timings.
-2. **Data hider:** pick a share, type a text payload and a hiding key, button "Embed", then download the embedded share as PNG. A second button extracts and shows the text (with CRC status).
-3. **Receiver:** multiselect which shares to use (1–4) and text boxes for the keys. Shows the result according to what was supplied: fewer than 3 shares gives an error message, 3 shares gives the LR image (Stage 1), 4 shares gives the masked image (Stage 2), 4 shares and the MSA key gives the original (Stage 3). Displays "exact match with original: yes/no" when the original is available.
+1. **Owner:** upload a grayscale image (auto-converted to 512×512), draw/move/resize the MSA rectangle or select an adaptive MSA mode, choose a predictor or automatic predictor selection, and create four authenticated shares. Shows the masked image, the four final shares, predictor evidence, `bpp_paper`, `bpp_free`, and timings.
+2. **Data hider:** pick a share, type a text payload, embed it in the independent free room, and extract it again with CRC status.
+3. **Receiver:** verify share integrity, automatically exclude invalid shares, and recover Stage 1, Stage 2, or Stage 3 from the first valid three-share subset. Fewer than three valid shares produces a clear rejection.
 
-4. **Metrics** (Tier 2): entropy, correlation, NPCR and UACI of the shares, and the histogram of the original vs a share.
+4. **Analysis:** entropy, correlation, NPCR, UACI, and share metrics.
 
-Run with `streamlit run app.py`. Keep results in `st.session_state`. A tiny test (`tests/test_app_smoke.py`) imports the app helpers and runs owner to receiver once.
+5. **Research Summary:** baseline, extensions, current-run evidence, and the presentation conclusion.
+
+Run the fallback with `streamlit run app.py`. Run the primary UI with
+`python -m uvicorn api.main:app --reload --port 8000` and `cd web && npm run dev`. The backend
+integration tests and the UI smoke tests cover the public owner-to-receiver flow.
 
 ### 6.2 Neural networks
-The paper's RCAN and GICA are **not** used: training or running them in 4 days is not feasible, and exact recovery would require bit-identical network output on sender and receiver, which is fragile across machines and library versions.
+The paper's RCAN and GICA are **not** used: training or running them in the original short project schedule is not feasible, and exact recovery would require bit-identical network output on sender and receiver, which is fragile across machines and library versions. The completed project instead uses deterministic integer predictors, adaptive predictor selection, and Telea inpainting.
 
 **Tier 3 stretch (only if everything else is finished):** a tiny CNN predictor (for example 3 convolution layers, about 10 k parameters, trained on 64×64 crops for about 20 minutes on CPU), used **only** to compare residual entropy against the integer predictors in E8. It must not be used inside the lossless pipeline unless its output is made integer-exact with fixed-point arithmetic, which is out of scope. Present it as an exploratory result, not as a reproduction of RCAN. In the report, list a fully integer, deterministic neural predictor as future work.
 
@@ -405,12 +421,14 @@ All tests use fixed seeds. Use 64×64 crops for speed; at least one test on a fu
 
 ## 8. Experiments (`experiments/run_all.py`)
 
-Tier 1 = E1–E6 (must). Tier 2 = E7–E10 (after Tier 1 passes). Master seed fixed and logged. Each experiment writes `results/E?.csv` and figures to `figures/`.
+Tier 1 = E1–E6 (must). Tier 2 = E7–E11 (baseline evaluation). Tier 3 = E12–E16
+(project extensions). Master seed fixed and logged. Each experiment writes `results/E?.csv` and
+figures to `figures/`.
 
 | ID | Experiment | Output |
 |---|---|---|
 | **E1** | Correctness matrix: 8 images × predictors × all 3-share combinations × 3 stages; also 20 random MSA rectangles per image | table of PASS/FAIL (must be all PASS) |
-| **E2** | Embedding rate: per image, for both predictors (`bilinear`, `edge_directed`), without MSA; paper formula and practical formula | table + bar chart; add a column with the **paper's quoted** Table III value (labelled "quoted") |
+| **E2** | Embedding rate: per image for the fixed integer predictors (`bilinear`, `edge_directed`, `med`), without MSA; paper formula and practical formula | table + bar chart; add a column with the **paper's quoted** Table III value (labelled "quoted") |
 | **E3** | Security metrics for expanded shares and final shares (4 shares each) and for the original: entropy (Eq. 18), horizontal/vertical adjacent correlation (Eq. 19), NPCR and UACI vs original (Eqs. 20–21) | table in the style of paper Tables I & II; ideal NPCR 99.6094 %, UACI 33.4635 % |
 | **E4** | Histograms of original, masked, 4 final shares; visual figure like paper Fig. 8 (original, masked, LR, 4 shares, recovered images) | figure |
 | **E5** | Negative/attack tests from §7: r−1 shares, wrong keys, missing keys | table, include PSNR/entropy of failed outputs |
@@ -419,6 +437,12 @@ Tier 1 = E1–E6 (must). Tier 2 = E7–E10 (after Tier 1 passes). Master seed fi
 | **E8** (Tier 2) | Predictor ablation: residual PDF (like paper Fig. 9, averaged over the 8 images) and embedding rate per image (like Fig. 10) for `bilinear`, `edge_directed`, `cv2_bicubic`; plus paper-faithful vs canonical Huffman header size | two figures + small table |
 | **E9** (Tier 2) | Ramp-leakage check (D3): given r−1 shares *and* the true K, count how many (c, a₁) candidates remain for sample pairs (expected 256 of 65 536); also show that without K the shares look uniform | short table |
 | **E10** (Tier 2) | Data hider: random payload up to capacity on every share, extract, verify equality and CRC; verify recovery unchanged; report capacity in bytes and bpp | table |
+| **E11** (Tier 2) | Keyed integrity and tampered-share detection | table |
+| **E12** (Tier 3) | Manual versus texture-adaptive versus edge-adaptive MSA placement | table |
+| **E13** (Tier 3) | One-tampered-share and one-missing-share resilient recovery across all stages | table |
+| **E14** (Tier 3) | Automatic predictor selection based on compressed residual length | table |
+| **E15** (Tier 3) | All four three-share threshold combinations across Stages 1–3 | table |
+| **E16** (Tier 3) | Recovery and data-hider attack matrix | table |
 
 **Quote table** (labelled "from He et al. 2026, Table III, not re-run"), average embedding rate in bpp: Wu et al. 1.8403; Chen et al. [30] 0.5000; Chen et al. [31] 3.5000; Hua et al. [32] 2.3372; [32] full size 4.3072; Yu et al. 2.7383; Chen & Xu 3.3319; Qin et al. 1.0807; Hua et al. [36] 1.7401; PSS-DRDHEI (paper) 5.2288.
 

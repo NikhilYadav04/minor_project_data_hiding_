@@ -46,3 +46,15 @@ def test_resilient_recovery_works_with_one_tampered_or_missing_share(image64):
         twice_tampered[index][10, 10] ^= 0xFF
     with pytest.raises(InsufficientSharesError):
         recover_available(twice_tampered, keys, "edge_directed", 3)
+
+
+def test_automatic_predictor_selection_records_candidates_and_recovers(image64):
+    keys = KeyBundle(709)
+    output = owner_encode(image64, (8, 8, 12, 12), keys, "auto")
+    assert output.stats["requested_method"] == "auto"
+    assert output.stats["predictor_selection"] == "automatic"
+    assert output.stats["method"] in {"bilinear", "edge_directed", "med"}
+    assert {row["method"] for row in output.stats["predictor_candidates"]} == {"bilinear", "edge_directed", "med"}
+    recovered, valid = recover_available(output.final_shares, keys, str(output.stats["method"]), 3)
+    assert valid == [0, 1, 2, 3]
+    assert np.array_equal(recovered, image64)

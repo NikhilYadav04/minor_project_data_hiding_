@@ -45,3 +45,18 @@ def test_api_automatic_recovery_selects_valid_threshold_subset():
     assert recovered.status_code == 200
     assert recovered.json()["exact"] is True
     assert recovered.json()["usedIndexes"] == [0, 1, 2]
+
+
+def test_api_automatic_predictor_selection_reports_evidence():
+    client = TestClient(app)
+    response = client.post(
+        "/api/owner/encode",
+        files={"file": ("image.png", _png_bytes(), "image/png")},
+        data={"seed": "24", "predictor": "auto", "top": "300", "left": "300", "height": "60", "width": "40"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["requestedPredictor"] == "auto"
+    assert body["predictorSelection"] == "automatic"
+    assert len(body["predictorCandidates"]) == 3
+    assert body["predictor"] in {"bilinear", "edge_directed", "med"}

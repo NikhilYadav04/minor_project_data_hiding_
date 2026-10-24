@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pss-dr-dhei"
 version = "0.1.0"
-description = "Simplified deterministic reproduction of progressive secret image sharing"
+description = "Research prototype for progressive secret image sharing with adaptive MSA, predictor selection, and tamper-aware recovery"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",

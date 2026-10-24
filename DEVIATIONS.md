@@ -23,3 +23,11 @@ paper. The following decisions are intentional:
    four supplied shares, while `recover_available` selects and reports a valid threshold subset.
 9. E12 and E13 are project extension experiments for adaptive MSA and resilient recovery; their
    results must be reported separately from paper-quoted values.
+
+10. The project extension adds automatic predictor selection. It evaluates bilinear,
+    edge-directed, and MED on the masked image and chooses the candidate with the shortest
+    paper-faithful compressed residual stream, using mean absolute residual as a deterministic
+    tie-breaker. This is an adaptive project heuristic, not the RCAN model from the paper.
+11. E14, E15, and E16 extend the evaluation: automatic predictor selection, all four threshold
+    combinations, and a recovery/data-hider attack matrix. They should be reported as extension
+    evidence rather than as measurements from the original publication.

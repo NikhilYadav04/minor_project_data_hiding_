@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 
 from pss.cli import load_gray512
 from pss.auth import verify_share
-from pss.embed import hider_embed, hider_extract
+from pss.embed import _blocks_from_image, _image_from_blocks, hider_embed, hider_extract, parse_header
 from pss.keys import KeyBundle
 from pss.metrics import adjacent_correlation, entropy, npcr, psnr, uaci
 from pss.pipeline import owner_encode, recover_available, recover_stage1, recover_stage2, recover_stage3
@@ -256,13 +256,98 @@ def e13_resilient_recovery(images):
     save_csv(rows, "E13")
 
 
+def e14_auto_predictor(images):
+    rows = []
+    for name, image in images.items():
+        rect = (image.shape[0] // 4, image.shape[1] // 4, image.shape[0] // 8, image.shape[1] // 10)
+        keys = KeyBundle(2026)
+        output = owner_encode(image, rect, keys, "auto")
+        recovered = recover_stage3(output.final_shares, keys, str(output.stats["method"]))
+        rows.append({
+            "image": name,
+            "selected_method": output.stats["method"],
+            "selected_bits": next(row["bit_length"] for row in output.stats["predictor_candidates"] if row["method"] == output.stats["method"]),
+            "stage3_exact": bool(np.array_equal(recovered, image)),
+            "candidates": json.dumps(output.stats["predictor_candidates"], sort_keys=True),
+        })
+    save_csv(rows, "E14")
+
+
+def e15_threshold_matrix(images):
+    rows = []
+    combinations = list(itertools.combinations(range(4), 3))
+    for name, image in images.items():
+        keys = KeyBundle(2026)
+        output = owner_encode(image, None, keys, "med")
+        for indexes in combinations:
+            selected = [output.final_shares[index] for index in indexes]
+            for stage, target in ((1, output.masked[0::2, 0::2]), (2, output.masked), (3, image)):
+                try:
+                    recovered, valid = recover_available(selected, keys, "med", stage, indexes=indexes)
+                    rows.append({"image": name, "shares": "".join(str(index + 1) for index in indexes), "stage": stage, "valid_count": len(valid), "exact": bool(np.array_equal(recovered, target)), "rejected": False})
+                except Exception as exc:
+                    rows.append({"image": name, "shares": "".join(str(index + 1) for index in indexes), "stage": stage, "valid_count": 0, "exact": False, "rejected": True, "error": type(exc).__name__})
+    save_csv(rows, "E15")
+
+
+def e16_attack_matrix(images):
+    rows = []
+    for name, image in images.items():
+        keys = KeyBundle(2026)
+        output = owner_encode(image, None, keys, "med")
+        method = str(output.stats["method"])
+        attacks = []
+        one_pixel = list(output.final_shares)
+        one_pixel[1] = one_pixel[1].copy()
+        one_pixel[1][10, 10] ^= 0xFF
+        attacks.append(("one_pixel", one_pixel, [0, 1, 2, 3]))
+        block = list(output.final_shares)
+        block[1] = block[1].copy()
+        block[1][40:60, 40:60] ^= 0xFF
+        attacks.append(("modified_block", block, [0, 1, 2, 3]))
+        attacks.append(("one_missing", [output.final_shares[i] for i in (0, 2, 3)], [0, 2, 3]))
+        attacks.append(("two_missing", [output.final_shares[i] for i in (0, 1)], [0, 1]))
+        for label, shares, indexes in attacks:
+            try:
+                recovered, valid = recover_available(shares, keys, method, 3, indexes=indexes)
+                rows.append({"image": name, "attack": label, "domain": "recovery", "valid_count": len(valid), "detected": label in {"one_pixel", "modified_block", "one_missing"}, "recovery_exact": bool(np.array_equal(recovered, image)), "rejected": False})
+            except Exception as exc:
+                rows.append({"image": name, "attack": label, "domain": "recovery", "valid_count": 0, "detected": True, "recovery_exact": False, "rejected": True, "error": type(exc).__name__})
+        try:
+            recover_available(output.final_shares, KeyBundle(2027), method, 3)
+            rows.append({"image": name, "attack": "wrong_master_key", "domain": "recovery", "valid_count": 4, "detected": False, "recovery_exact": False, "rejected": False})
+        except Exception as exc:
+            rows.append({"image": name, "attack": "wrong_master_key", "domain": "recovery", "valid_count": 0, "detected": True, "recovery_exact": False, "rejected": True, "error": type(exc).__name__})
+        payload = b"attack-test"
+        embedded = hider_embed(output.final_shares[0], payload, keys.dh_seed(0))
+        try:
+            hider_extract(embedded, KeyBundle(2027).dh_seed(0))
+            rows.append({"image": name, "attack": "wrong_data_hider_key", "domain": "data_hider", "valid_count": 1, "detected": False, "recovery_exact": False, "rejected": False})
+        except Exception as exc:
+            rows.append({"image": name, "attack": "wrong_data_hider_key", "domain": "data_hider", "valid_count": 0, "detected": True, "recovery_exact": False, "rejected": True, "error": type(exc).__name__})
+        info = parse_header(embedded)
+        blocks = _blocks_from_image(embedded.copy())
+        redundant = blocks[:, 1:].copy()
+        flat = redundant.reshape(-1)
+        flat[info["free_offset"] + 8] ^= 0x01
+        blocks[:, 1:] = redundant
+        corrupted_payload = _image_from_blocks(blocks, embedded.shape)
+        try:
+            hider_extract(corrupted_payload, keys.dh_seed(0))
+            rows.append({"image": name, "attack": "corrupted_data_hider_payload", "domain": "data_hider", "valid_count": 1, "detected": False, "recovery_exact": False, "rejected": False})
+        except Exception as exc:
+            rows.append({"image": name, "attack": "corrupted_data_hider_payload", "domain": "data_hider", "valid_count": 0, "detected": True, "recovery_exact": False, "rejected": True, "error": type(exc).__name__})
+    save_csv(rows, "E16")
+
+
 def main():
     (ROOT / "results").mkdir(exist_ok=True)
     (ROOT / "figures").mkdir(exist_ok=True)
     images = load_images()
     (ROOT / "results" / "run_metadata.json").write_text(json.dumps({
         "master_seed": 2026,
-        "methods": METHODS + ["cv2_bicubic"],
+        "methods": METHODS + ["cv2_bicubic", "auto"],
+        "extension_experiments": ["E12_adaptive_msa", "E13_resilient_recovery", "E14_auto_predictor", "E15_threshold_matrix", "E16_attack_matrix"],
         "image_names": IMAGE_NAMES,
         "image_sources": {name: image_source(name) for name in IMAGE_NAMES},
         "image_shapes": {name: list(image.shape) for name, image in images.items()},
@@ -281,7 +366,10 @@ def main():
     e11(images)
     e12_adaptive_msa(images)
     e13_resilient_recovery(images)
-    print("Wrote E1-E13 experiment files to results/ and figures/")
+    e14_auto_predictor(images)
+    e15_threshold_matrix(images)
+    e16_attack_matrix(images)
+    print("Wrote E1-E16 experiment files to results/ and figures/")
 
 
 if __name__ == "__main__":

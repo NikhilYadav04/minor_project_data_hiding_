@@ -108,6 +108,9 @@ def _job_response(job_id: str, job: Job) -> dict:
     return {
         "jobId": job_id,
         "predictor": job.predictor,
+        "requestedPredictor": job.output.stats.get("requested_method", job.predictor),
+        "predictorSelection": job.output.stats.get("predictor_selection", "manual"),
+        "predictorCandidates": job.output.stats.get("predictor_candidates", []),
         "original": _png_data(job.original),
         "masked": _png_data(job.output.masked),
         "lr": _png_data(job.output.masked[0::2, 0::2]),
@@ -148,7 +151,7 @@ async def encode_owner(
     except (ValueError, CapacityError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     job_id = secrets.token_urlsafe(10)
-    job = Job(image, output, keys, predictor)
+    job = Job(image, output, keys, str(output.stats.get("method", predictor)))
     JOBS[job_id] = job
     return _job_response(job_id, job)
 

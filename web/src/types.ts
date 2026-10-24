@@ -1,4 +1,12 @@
-export type Predictor = "edge_directed" | "bilinear" | "med";
+export type Predictor = "edge_directed" | "bilinear" | "med" | "auto";
+export type SelectedPredictor = "edge_directed" | "bilinear" | "med";
+
+export type PredictorTrial = {
+  method: SelectedPredictor;
+  bit_length: number;
+  mean_abs_residual: number;
+  order: number;
+};
 
 export type Rect = {
   top: number;
@@ -25,12 +33,15 @@ export type MetricRow = {
 
 export type Job = {
   jobId: string;
-  predictor: Predictor;
+  predictor: SelectedPredictor;
+  requestedPredictor: Predictor;
+  predictorSelection: "manual" | "automatic";
+  predictorCandidates: PredictorTrial[];
   original: string;
   masked: string;
   lr: string;
   shares: Share[];
-  stats: Record<string, number | string>;
+  stats: Record<string, unknown>;
   msaMode: "manual" | "auto_texture" | "auto_edge";
   msaRect: Rect | null;
   metrics: MetricRow[];
