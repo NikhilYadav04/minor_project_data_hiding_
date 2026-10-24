@@ -21,7 +21,7 @@ def demo(args: argparse.Namespace) -> None:
     image = load_gray512(args.image)
     rect = tuple(args.rect) if args.rect else None
     keys = KeyBundle(args.seed)
-    output = owner_encode(image, rect, keys, args.method)
+    output = owner_encode(image, rect, keys, args.method, inpainting_method=args.inpainting)
     selected_method = str(output.stats["method"])
     output_dir = Path(args.out)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +51,8 @@ def main() -> None:
     demo_parser.add_argument("--image", required=True)
     demo_parser.add_argument("--rect", nargs=4, type=int)
     demo_parser.add_argument("--seed", type=int, default=123)
-    demo_parser.add_argument("--method", choices=["bilinear", "edge_directed", "med", "auto"], default="edge_directed")
+    demo_parser.add_argument("--method", choices=["bilinear", "edge_directed", "med", "rcan_style", "auto"], default="edge_directed")
+    demo_parser.add_argument("--inpainting", choices=["telea", "contextual"], default="telea")
     demo_parser.add_argument("--out", default="out")
     demo_parser.set_defaults(func=demo)
     args = parser.parse_args()

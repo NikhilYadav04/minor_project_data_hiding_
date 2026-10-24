@@ -12,12 +12,13 @@ A reproducible, research-oriented implementation of **progressive secret image s
 | Image format | 8-bit grayscale, normalized to 512 × 512 |
 | Progressive outputs | LR preview, masked image, exact original |
 | Sensitive region | Manual, texture-adaptive, or edge-adaptive MSA rectangle |
-| Predictors | Bilinear, edge-directed, MED, and automatic best-predictor selection |
+| Predictors | Bilinear, edge-directed, MED, RCAN-style fixed-point ablation, and automatic best-predictor selection |
+| Inpainting backends | Telea baseline and deterministic contextual multi-scale fallback |
 | Data hiding | Independent payload embedding with CRC validation |
 | Integrity | Keyed BLAKE2s share tags and invalid-share rejection |
 | Resilience extension | Masked/original recovery from any three valid shares |
 | Interfaces | FastAPI + React/Vite dashboard and Streamlit fallback |
-| Evaluation | E1–E16 reproducible CSV experiments on eight bundled images |
+| Evaluation | E1–E18 CSV experiments and generated reports on eight bundled images |
 
 ## Why this project matters
 
@@ -36,7 +37,7 @@ The project then extends the baseline with content-aware protection, compression
 ### Baseline reproduction
 
 - MSA extraction and protected storage.
-- Telea inpainting as a deterministic substitute for GICA.
+- Telea inpainting as a deterministic baseline, plus a contextual multi-scale GICA-inspired fallback.
 - 2×2 low-resolution sampling.
 - Integer prediction and residual coding.
 - Huffman compression.
@@ -57,7 +58,14 @@ The project then extends the baseline with content-aware protection, compression
    - Select the shortest compressed residual stream.
    - Report the candidate bit lengths and mean absolute residuals.
 
-3. **Tamper-aware resilient recovery**
+3. **Paper-aligned fidelity track**
+   - `contextual` inpainting provides deterministic coarse-to-fine context propagation and
+     Navier–Stokes refinement as a stronger GICA-inspired fallback.
+   - `rcan_style` provides fixed-point residual refinement as an RCAN-style predictor ablation.
+   - Both modes preserve exact recovery because sender and receiver use the same deterministic
+     implementation and retain the residual losslessly.
+
+4. **Tamper-aware resilient recovery**
    - Verify every share before recovery.
    - Exclude invalid or unavailable shares.
    - Recover from the first valid three-share subset.
@@ -108,14 +116,16 @@ sequenceDiagram
 ```text
 pss/                 Core algorithm implementation
   msa.py             MSA preparation, restoration, adaptive selection
-  predictor.py       Bilinear, edge-directed, MED, bicubic predictors
+  inpainting.py      Telea and contextual multi-scale inpainting
+  deep_models.py     RCAN-style fixed-point predictor metadata/backend
+  predictor.py       Bilinear, edge-directed, MED, bicubic, RCAN-style predictors
   pipeline.py        Owner encoding and progressive recovery
   sharing.py         GF(2⁸) pair sharing and reconstruction
   embed.py           Share expansion, headers, data hiding
   auth.py            Keyed share integrity verification
 api/                 FastAPI adapter used by the React dashboard
 web/                 React/Vite/TypeScript research dashboard
-experiments/         Reproducible E1–E16 experiment runner
+experiments/         Reproducible E1–E18 experiment runner
 tests/               Unit, integration, tamper, image, and extension tests
 data/images/         Eight documented public sample substitutes
 results/             CSV outputs and run metadata
@@ -223,6 +233,10 @@ The runner writes:
 | `E14.csv` | Automatic predictor-selection evidence |
 | `E15.csv` | All four three-share threshold combinations |
 | `E16.csv` | Recovery and data-hider attack matrix |
+| `E17.csv` | Final baseline-versus-extension evaluation |
+| `E18.csv` | Telea/contextual and integer/RCAN-style fidelity comparison |
+| `final_report.md` | Generated presentation report |
+| `final_manifest.json` | Seeds, backends, experiment coverage, and verification flags |
 | `run_metadata.json` | Seeds, image provenance, methods, and experiment metadata |
 
 The eight bundled images are documented in [`data/README.md`](data/README.md). They are public sample substitutes, not the exact images from the paper.
@@ -237,14 +251,16 @@ The strongest claims supported by the implementation are:
 - Two invalid or unavailable shares leave fewer than three valid shares and are rejected.
 - Adaptive MSA placement is reproducible and remains inside the image.
 - Automatic predictor selection is based on measured compressed residual length.
+- The contextual inpainting and RCAN-style predictor backends are deterministic and preserve exact Stage 3 recovery.
 - Data-hider payloads are independently extracted and CRC-validated.
 
 Do not claim that the project reproduces RCAN or GICA exactly, or that the measured security metrics prove cryptographic security. Present those components as documented simplifications and interpret entropy, correlation, NPCR, and UACI as empirical measurements of generated shares.
 
 ## Limitations and honest scope
 
-- RCAN is replaced by deterministic integer predictors.
-- GICA is replaced by OpenCV Telea inpainting.
+- The original trained RCAN and GICA weights are not bundled. The default path remains the
+  deterministic integer/Telea baseline; optional `rcan_style` and `contextual` modes are
+  reproducible architecture-inspired ablations, not exact neural-network reproduction claims.
 - The eight images are public sample substitutes.
 - The original paper's comparison schemes are quoted where noted; they are not reimplemented.
 - The automatic MSA selector is a reproducible heuristic based on local texture or edges.
@@ -253,10 +269,27 @@ Do not claim that the project reproduces RCAN or GICA exactly, or that the measu
 
 See [`DEVIATIONS.md`](DEVIATIONS.md) for the full decision record.
 
+## Interface design direction
+
+The primary dashboard uses a visual research-workspace language inspired by modern interactive
+learning products: a floating rounded navigation bar, warm paper background, serif editorial
+headings, restrained navy/cream controls, and a large visual work area for the image and MSA
+selection. The styling is intentionally adapted to this project rather than copied from another
+product; the research workflow and evidence remain the focus.
+
+The visual hierarchy is designed for a live professor demonstration:
+
+1. The hero explains the project in one sentence.
+2. The Owner workspace makes the image and sensitive-region selection the focal interaction.
+3. The workflow navigation keeps Data hider, Receiver, Analysis, and Summary one click away.
+4. The Summary view presents quality metrics, the key-permission ladder, paper comparison, and
+   attack evidence without requiring the evaluator to inspect source code.
+
 ## Documentation map
 
 - [`SPEC.md`](SPEC.md) — paper-inspired algorithm and implementation specification.
-- [`TESTING.md`](TESTING.md) — exact commands for unit tests, UI checks, API checks, and E1–E16 experiments.
+- [`TESTING.md`](TESTING.md) — exact commands for unit tests, UI checks, API checks, and E1–E18 experiments.
+- [`FINAL_REPORT.md`](FINAL_REPORT.md) — generated baseline-versus-extension summary for presentation.
 - [`DEVIATIONS.md`](DEVIATIONS.md) — differences from the paper and project-extension decisions.
 - [`data/README.md`](data/README.md) — image provenance and substitute-image mapping.
 
@@ -265,10 +298,11 @@ See [`DEVIATIONS.md`](DEVIATIONS.md) for the full decision record.
 The current implementation has been verified with:
 
 ```text
-Python test suite: 30 passed
+Python test suite: 38 passed
 React/Vite production build: successful
-Full experiment suite: E1–E16 generated
-Exact-recovery checks: passed for extension matrices
+Targeted E18 fidelity experiment: generated successfully
+E18 optional-backend checks: Stage 3 exact and deterministic for all tested rows
+Existing E1–E17 results and final report: retained and documented
 ```
 
 The frontend build may print a non-blocking Vite bundle-size advisory; it does not prevent the dashboard from running.

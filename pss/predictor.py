@@ -3,6 +3,8 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from .deep_models import predict_rcan_style
+
 
 def get_lr(masked: np.ndarray) -> np.ndarray:
     image = np.asarray(masked, dtype=np.uint8)
@@ -96,6 +98,8 @@ def predict(L: np.ndarray, method: str = "edge_directed") -> np.ndarray:
         return predict_med(L)
     if method == "cv2_bicubic":
         return predict_cv2_bicubic(L)
+    if method in {"rcan_style", "rcan_lite"}:
+        return predict_rcan_style(L)
     raise ValueError(f"unknown predictor: {method}")
 
 

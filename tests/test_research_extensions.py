@@ -58,3 +58,12 @@ def test_automatic_predictor_selection_records_candidates_and_recovers(image64):
     recovered, valid = recover_available(output.final_shares, keys, str(output.stats["method"]), 3)
     assert valid == [0, 1, 2, 3]
     assert np.array_equal(recovered, image64)
+
+
+def test_quality_metrics_are_exact_for_original(image64):
+    from pss.metrics import quality_metrics
+    result = quality_metrics(image64, image64)
+    assert result["psnr"] == "∞"
+    assert result["ssim"] == 1.0
+    assert result["mse"] == 0.0
+    assert result["mae"] == 0.0

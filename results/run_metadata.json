@@ -5,14 +5,21 @@
     "edge_directed",
     "med",
     "cv2_bicubic",
+    "rcan_style",
     "auto"
+  ],
+  "inpainting_backends": [
+    "telea",
+    "contextual"
   ],
   "extension_experiments": [
     "E12_adaptive_msa",
     "E13_resilient_recovery",
     "E14_auto_predictor",
     "E15_threshold_matrix",
-    "E16_attack_matrix"
+    "E16_attack_matrix",
+    "E17_final_evaluation",
+    "E18_paper_fidelity"
   ],
   "image_names": [
     "airplane",

@@ -1,17 +1,17 @@
 # Testing guide
 
-This guide tests the completed **simplified reproduction and project extensions**. It does not test
-GICA or RCAN because those paper components are intentionally replaced by OpenCV Telea inpainting
-and deterministic integer predictors. The tests verify the behavior that is actually implemented.
+This guide tests the completed **simplified reproduction and project extensions**. It does not claim
+exact GICA or RCAN because the original trained weights are unavailable. The optional contextual and
+RCAN-style backends are tested as deterministic architecture-inspired ablations.
 
 ## Current verified status
 
 The latest local verification is:
 
 ```text
-Python test suite: 30 passed
+Python test suite: 38 passed
 React/Vite production build: successful
-Experiment outputs: E1–E16 generated
+Experiment outputs: existing E1–E17 plus targeted E18 fidelity comparison generated
 ```
 
 ## 1. Install the project
@@ -142,6 +142,10 @@ results/E13.csv
 results/E14.csv
 results/E15.csv
 results/E16.csv
+results/E17.csv
+results/E18.csv
+results/final_report.md
+results/final_manifest.json
 results/run_metadata.json
 figures/E2_bpp.png
 figures/E4_overview.png
@@ -152,8 +156,9 @@ figures/E8_embedding_rate.png
 
 `E8.csv` contains the predictor comparison, including MED.
 
-`E11.csv` contains the tampered-share detection results. E12-E16 contain the project-extension
-experiments described in Sections 12 and 14.
+`E11.csv` contains the tampered-share detection results. E12-E17 contain the project-extension
+experiments described in Sections 12 and 14. `E18.csv` contains the targeted paper-fidelity
+comparison between Telea/contextual inpainting and integer/RCAN-style prediction.
 
 Check the correctness and data-hider results:
 
@@ -289,16 +294,18 @@ Verify this flow:
 2. Upload one of the eight files in `data/images/`.
 3. Drag across the image to create the amber MSA rectangle.
 4. Confirm the rectangle dimensions update while dragging.
-5. Choose `Bilinear`, `Edge directed`, `MED`, and `Automatic best predictor` in separate runs.
+5. Choose `Bilinear`, `Edge directed`, `MED`, `RCAN-style fixed-point`, and `Automatic best predictor` in separate runs.
 6. Try Manual, Automatic · texture, and Automatic · edges MSA modes. Confirm the selected
    coordinates are displayed after **Create protected shares**.
-7. Confirm the masked image and four shares appear after **Create protected shares**.
-8. Open **Data hider**, add a short text payload, and extract it again.
-9. Open **Receiver** and run Stage 1, Stage 2, and Stage 3. The dashboard uses automatic
+7. Try both inpainting backends: **Telea baseline** and **Contextual multi-scale**. The latter
+   should be described as a deterministic GICA-inspired fallback, not exact GICA.
+8. Confirm the masked image and four shares appear after **Create protected shares**.
+9. Open **Data hider**, add a short text payload, and extract it again.
+10. Open **Receiver** and run Stage 1, Stage 2, and Stage 3. The dashboard uses automatic
    valid-share selection for all stages and reports which threshold subset was used.
-10. Confirm each result reports an exact match and shows the used valid-share indexes.
-11. Open **Analysis** and confirm the entropy chart and share metrics table appear.
-12. Open **Research Summary** and confirm the baseline, extensions, predictor decision, MSA
+11. Confirm each result reports an exact match and shows the used valid-share indexes.
+12. Open **Analysis** and confirm the entropy chart and share metrics table appear.
+13. Open **Research Summary** and confirm the baseline, extensions, predictor decision, MSA
     coordinates, integrity state, and conclusion are shown.
 
 The backend integration test can be run without starting the server manually:
@@ -403,7 +410,8 @@ results/E16.csv
 E14 records the automatic predictor decision and exact recovery. E15 tests all four combinations of
 three available shares for Stages 1, 2, and 3. E16 covers one-pixel tampering, block tampering, one
 missing share, two missing shares, wrong master key, wrong data-hider key, and a corrupted data-hider
-payload. The expected interpretation is recovery with one invalid/unavailable share and rejection
+payload. E17 compares the baseline and final configurations using compression, embedding-rate,
+PSNR/SSIM/MAE, exact recovery, and one-tampered-share recovery. The expected interpretation is recovery with one invalid/unavailable share and rejection
 when fewer than three valid shares remain.
 
 ## 15. Use the Research Summary view
@@ -413,15 +421,100 @@ three project extensions, the selected predictor, MSA coordinates, embedding roo
 and the exact-recovery conclusion for the current live run.
 
 
-## 16. Documentation consistency check
+## 16. Test final evaluation and generated report
+
+Run the final comparison and report generation directly:
+
+```bash
+python -c "import experiments.run_all as r; images=r.load_images(); r.e17_final_evaluation(images); r.write_final_report(images)"
+```
+
+This writes `results/E17.csv`, `results/E18.csv`, `results/final_report.md`,
+`results/final_manifest.json`, and the root-level `FINAL_REPORT.md`. E17 contains 40 rows for
+8 images × 5 configurations. E18 contains 32 targeted rows for 8 images × 4 fidelity
+configurations. The E17 and E18 exact-recovery checks should pass for all rows.
+
+For the targeted fidelity comparison without waiting for the full suite, run:
+
+```bash
+python -c "import experiments.run_all as r; images=r.load_images(); r.e18_paper_fidelity(images)"
+```
+
+## 17. Documentation consistency check
 
 Before a presentation, confirm these files agree with the implementation:
 
-- `README.md` describes the current React/FastAPI dashboard and E1–E16 outputs.
+- `README.md` describes the current React/FastAPI dashboard and E1–E18 outputs.
 - `SPEC.md` distinguishes the paper-inspired baseline from project extensions.
-- `DEVIATIONS.md` records Telea, integer predictors, adaptive MSA, automatic predictor selection,
-  and three-share resilient code/MSA recovery.
+- `DEVIATIONS.md` records the Telea/integer baseline, contextual/RCAN-style fidelity track,
+  adaptive MSA, automatic predictor selection, and three-share resilient code/MSA recovery.
 - `data/README.md` identifies the bundled images as public substitutes.
+- `FINAL_REPORT.md` summarizes the final baseline-versus-extension evidence.
 
 The README is the professor-facing entry point; `TESTING.md` is the reproducibility procedure;
 `SPEC.md` and `DEVIATIONS.md` provide the technical and academic context.
+
+
+## 18. Verify the visual redesign
+
+Start the FastAPI and Vite services, then open the dashboard at the URL printed by Vite. Confirm:
+
+- A floating rounded navigation bar replaces the old fixed sidebar presentation.
+- The warm paper background and large serif hero heading render without clipping.
+- Owner, Data hider, Receiver, Analysis, and Summary remain reachable from the navigation.
+- The Owner workspace still exposes the image selector, adaptive MSA modes, predictor selection,
+  and share creation controls.
+- The redesign remains usable at narrow widths, where the navigation wraps into a horizontal
+  scrollable workflow row.
+
+The redesign changes presentation only; the existing Python, API, and exact-recovery tests remain
+the source of truth for algorithm behavior.
+
+## 19. Test the paper-fidelity backends
+
+The fidelity track is intentionally optional and deterministic. It does not claim to load or
+reproduce the paper's original trained GICA/RCAN weights.
+
+Run the focused backend tests:
+
+```bash
+python -m pytest tests/test_fidelity_backends.py -q
+```
+
+Run the RCAN-style/contextual CLI path:
+
+```bash
+python -m pss.cli demo \
+  --image data/images/sailboat.png \
+  --rect 300 300 60 40 \
+  --seed 123 \
+  --method rcan_style \
+  --inpainting contextual \
+  --out fidelity_demo_out
+```
+
+Expected output:
+
+```text
+Stage 2 exact: True
+Stage 3 exact: True
+selected_method: rcan_style
+```
+
+Run the targeted E18 comparison:
+
+```bash
+python -c "import experiments.run_all as r; images=r.load_images(); r.e18_paper_fidelity(images)"
+```
+
+E18 should contain 32 rows: 8 images × 4 configurations. The expected configurations are:
+
+```text
+telea_integer
+contextual_integer
+telea_rcan_style
+contextual_rcan_style
+```
+
+Every row should report `stage3_exact=True` and `contextual_deterministic=True`. RCAN-style rows
+also record the stable fixed-point artifact hash.

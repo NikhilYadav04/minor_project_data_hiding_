@@ -6,7 +6,10 @@ paper. The following decisions are intentional:
 1. The default irreducible polynomial is `0x11D`, because it reproduces the paper's worked example;
    `0x11B` remains available for parametrized GF tests.
 2. Evaluation keys are sampled from `1..256-n`, avoiding zero and out-of-range points.
-3. GICA is replaced by OpenCV Telea inpainting and RCAN is replaced by integer predictors.
+3. The default path uses OpenCV Telea inpainting and integer predictors. Optional fidelity modes
+   add deterministic contextual multi-scale inpainting and an RCAN-style fixed-point predictor;
+   these are architecture-inspired ablations because the paper's trained GICA/RCAN weights are
+   not included.
 4. The Huffman matching-rule width includes zero with `ceil(log2(max_len + 1))`.
 5. Canonical Huffman mode uses the high bit of the one-byte width marker as an internal format flag;
    the default paper-faithful format leaves that bit clear.
@@ -31,3 +34,15 @@ paper. The following decisions are intentional:
 11. E14, E15, and E16 extend the evaluation: automatic predictor selection, all four threshold
     combinations, and a recovery/data-hider attack matrix. They should be reported as extension
     evidence rather than as measurements from the original publication.
+
+12. The final evaluation adds PSNR, SSIM, MSE, and MAE as image-fidelity evidence. These metrics
+    are reported for masked and exact-recovery outputs; exact recovery is represented as PSNR ∞,
+    SSIM 1, MSE 0, and MAE 0.
+13. E17 and `FINAL_REPORT.md` summarize baseline-versus-extension results. The report separates
+    measured implementation results from quoted paper values and does not claim cryptographic
+    security from empirical share metrics alone.
+
+14. E18 compares the reliable baseline against the optional contextual and RCAN-style fidelity
+    backends. The RCAN-style backend records a stable artifact hash and uses the five-group,
+    five-block configuration described in the paper's architecture section; it is not trained
+    RCAN and must be labelled accordingly.

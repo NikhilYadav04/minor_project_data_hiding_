@@ -1,4 +1,4 @@
-import type { Job, Predictor, Recovery, Rect, Share } from "./types";
+import type { AttackResult, Job, Predictor, Recovery, Rect, Share } from "./types";
 
 const API = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -8,7 +8,7 @@ async function json<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export async function encodeOwner(file: File, seed: number, predictor: Predictor, rect: Rect, msaMode: Job["msaMode"]): Promise<Job> {
+export async function encodeOwner(file: File, seed: number, predictor: Predictor, rect: Rect, msaMode: Job["msaMode"], inpainting: "telea" | "contextual" = "telea"): Promise<Job> {
   const form = new FormData();
   form.append("file", file);
   form.append("seed", String(seed));
@@ -18,6 +18,7 @@ export async function encodeOwner(file: File, seed: number, predictor: Predictor
   form.append("height", String(rect.height));
   form.append("width", String(rect.width));
   form.append("msa_mode", msaMode);
+  form.append("inpainting", inpainting);
   return json<Job>(await fetch(`${API}/api/owner/encode`, { method: "POST", body: form }));
 }
 
@@ -50,5 +51,13 @@ export async function extractPayload(jobId: string, shareIndex: number): Promise
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jobId, shareIndex }),
+  }));
+}
+
+export async function simulateAttack(jobId: string, attack: string): Promise<AttackResult> {
+  return json<AttackResult>(await fetch(`${API}/api/receiver/attack`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jobId, attack }),
   }));
 }

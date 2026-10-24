@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from .exceptions import InvalidKeyError
+from .inpainting import inpaint
 
 
 @dataclass(frozen=True)
@@ -43,7 +44,12 @@ def _pairs_to_bytes(pairs: np.ndarray) -> np.ndarray:
     return values.reshape(-1, 2).reshape(-1)
 
 
-def prepare_msa(img: np.ndarray, rect: tuple[int, int, int, int] | None, k_sc: int) -> MSAData:
+def prepare_msa(
+    img: np.ndarray,
+    rect: tuple[int, int, int, int] | None,
+    k_sc: int,
+    inpainting_method: str = "telea",
+) -> MSAData:
     image = np.asarray(img, dtype=np.uint8)
     validated = validate_rect(image.shape, rect)
     if validated is None:
@@ -51,7 +57,7 @@ def prepare_msa(img: np.ndarray, rect: tuple[int, int, int, int] | None, k_sc: i
     top, left, height, width = validated
     mask = np.zeros(image.shape, dtype=np.uint8)
     mask[top : top + height, left : left + width] = 255
-    masked = cv2.inpaint(image, mask, 3, cv2.INPAINT_TELEA)
+    masked = inpaint(image, mask, inpainting_method)
     outside = mask == 0
     if not np.array_equal(masked[outside], image[outside]):
         raise AssertionError("inpainting changed pixels outside the MSA")

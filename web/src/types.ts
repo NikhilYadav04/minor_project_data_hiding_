@@ -1,11 +1,30 @@
-export type Predictor = "edge_directed" | "bilinear" | "med" | "auto";
-export type SelectedPredictor = "edge_directed" | "bilinear" | "med";
+export type Predictor = "edge_directed" | "bilinear" | "med" | "rcan_style" | "auto";
+export type SelectedPredictor = "edge_directed" | "bilinear" | "med" | "rcan_style";
 
 export type PredictorTrial = {
   method: SelectedPredictor;
   bit_length: number;
   mean_abs_residual: number;
   order: number;
+};
+
+
+export type QualityMetrics = {
+  psnr: number | string;
+  ssim: number;
+  mse: number;
+  mae: number;
+};
+
+export type AttackResult = {
+  attack: string;
+  domain: string;
+  detected: boolean;
+  validIndexes: number[];
+  usedIndexes: number[];
+  recovery: string;
+  exact: boolean;
+  message: string;
 };
 
 export type Rect = {
@@ -39,10 +58,15 @@ export type Job = {
   predictorCandidates: PredictorTrial[];
   original: string;
   masked: string;
+  quality: {
+    masked: { whole: QualityMetrics; msa: QualityMetrics | null };
+    stage3: QualityMetrics;
+  };
   lr: string;
   shares: Share[];
   stats: Record<string, unknown>;
   msaMode: "manual" | "auto_texture" | "auto_edge";
+  inpaintingMethod?: "telea" | "contextual";
   msaRect: Rect | null;
   metrics: MetricRow[];
 };

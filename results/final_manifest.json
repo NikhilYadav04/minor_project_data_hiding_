@@ -1,0 +1,75 @@
+{
+  "project": "PSS-DRDHEI research prototype",
+  "master_seed": 2026,
+  "threshold": "3-of-4",
+  "image_count": 8,
+  "image_names": [
+    "airplane",
+    "baboon",
+    "boat",
+    "couple",
+    "elaine",
+    "man",
+    "peppers",
+    "sailboat"
+  ],
+  "image_source": "bundled_public_substitute",
+  "predictors": [
+    "bilinear",
+    "edge_directed",
+    "med",
+    "rcan_style",
+    "auto"
+  ],
+  "inpainting_backends": [
+    "telea",
+    "contextual"
+  ],
+  "msa_modes": [
+    "manual",
+    "auto_texture",
+    "auto_edge"
+  ],
+  "experiments": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8",
+    "E9",
+    "E10",
+    "E11",
+    "E12",
+    "E13",
+    "E14",
+    "E15",
+    "E16",
+    "E17",
+    "E18"
+  ],
+  "extension_experiments": [
+    "E12",
+    "E13",
+    "E14",
+    "E15",
+    "E16",
+    "E17",
+    "E18"
+  ],
+  "checks": {
+    "e17_all_stage1_exact": true,
+    "e17_all_stage2_exact": true,
+    "e17_all_stage3_exact": true,
+    "e17_all_tamper_recovery_exact": true,
+    "e16_rows": 56,
+    "e18_all_stage3_exact": true,
+    "e18_all_deterministic": true
+  },
+  "verification_commands": [
+    "python -m pytest -q",
+    "cd web && npm run build"
+  ]
+}

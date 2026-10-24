@@ -6,7 +6,7 @@
 | **Base paper** | M. He, X. Xie, X. Wang, L. Zhang, "Progressive Secret Sharing Through the Integration of Deep Learning and Reversible Data Hiding in Encrypted Images," *IEEE Internet of Things Journal*, vol. 13, no. 3, pp. 4564–4577, 1 Feb 2026. DOI 10.1109/JIOT.2025.3635284 |
 | **Scheme name in paper** | PSS-DRDHEI |
 | **Team / time** | 2 people, 4 days |
-| **Language / stack** | Python 3.10+, NumPy, OpenCV, scikit-image, pandas, Matplotlib, pytest, Streamlit (UI). **No deep-learning frameworks.** |
+| **Language / stack** | Python 3.10+, NumPy, OpenCV, scikit-image, pandas, Matplotlib, pytest, Streamlit fallback, and React/Vite/FastAPI dashboard. The fidelity track uses deterministic NumPy/OpenCV fixed-point components; no deep-learning framework is required. |
 | **Target configuration** | (r, n) = (3, 4) threshold, 512×512 grayscale 8-bit images |
 | **Document purpose** | (1) project proposal, and (2) complete implementation spec to hand to Claude Code |
 
@@ -52,9 +52,9 @@ The "most sensitive area" (MSA) is a rectangle (for example a face, a tank, a le
 | Paper component | In this project | Reason |
 |---|---|---|
 | Rectangular MSA peeling | **Reproduced** | Core feature |
-| GICA neural inpainting | **Replaced** by `cv2.inpaint` (Telea) | The receiver never re-runs inpainting: Stage 2 recovers the masked image from the residual, so any fill method is valid. Only visual quality differs. |
+| GICA neural inpainting | **Baseline:** `cv2.inpaint` (Telea). **Optional:** deterministic contextual multi-scale fallback | The receiver never re-runs inpainting: Stage 2 recovers the masked image from the residual, so any fill method is valid. The optional backend is GICA-inspired, not exact GICA. |
 | 2×2 down-sampling to LR image | **Reproduced** | Core |
-| RCAN super-resolution predictor | **Replaced** by deterministic integer predictors (§5.5) | Training/running RCAN is infeasible in 4 days. Predictor must be bit-exact on sender and receiver. |
+| RCAN super-resolution predictor | **Baseline:** deterministic integer predictors. **Optional:** RCAN-style fixed-point predictor | Exact trained RCAN weights are unavailable; the optional backend preserves the paper's residual-refinement direction while remaining bit-exact on sender and receiver. |
 | Prediction residual + Huffman coding with matching rules | **Reproduced** | Core |
 | Shamir sharing over GF(2⁸) | **Baseline:** (r,n) for LR and paper-style full-share code/MSA streams. **Extension:** (r,n) for code and MSA as well. | The extension enables recovery after one missing or invalid share. |
 | 1×2 pixel-pair packing (c and a₁ carry data) | **Reproduced** | Core |
@@ -75,9 +75,10 @@ The "most sensitive area" (MSA) is a rectangle (for example a face, a tank, a le
 |---|---|---|
 | **Tier 1 — must work** | Full pipeline with 3-stage lossless recovery, MSA, data hider, integer predictors, security metrics, and tested UI | Complete |
 | **Tier 2 — research evaluation** | E7 MSA sweep, E8 predictor ablation, E9 leakage analysis, E10 data-hider capacity, E11 tamper detection | Complete |
-| **Tier 3 — project extensions** | Adaptive MSA (E12), resilient recovery (E13), automatic predictor selection (E14), threshold matrix (E15), attack matrix (E16), React/FastAPI dashboard and Research Summary | Complete |
+| **Tier 3 — project extensions** | Adaptive MSA (E12), resilient recovery (E13), automatic predictor selection (E14), threshold matrix (E15), attack matrix (E16), final evaluation (E17), React/FastAPI dashboard and Research Summary | Complete |
+| **Fidelity track** | Contextual inpainting and RCAN-style fixed-point predictor comparison (E18) | Targeted comparison complete |
 
-What the completed project demonstrates: exact recovery proven on every three-share combination, measured security and capacity analysis, explicit paper discrepancies with evidence, adaptive MSA placement, automatic predictor selection, tamper-aware recovery, attack evaluation, and a working professor-facing demo. This is depth, not volume.
+What the completed project demonstrates: exact recovery proven on every three-share combination, measured security and capacity analysis, explicit paper discrepancies with evidence, adaptive MSA placement, automatic predictor selection, deterministic contextual/RCAN-style fidelity ablations, tamper-aware recovery, attack evaluation, and a working professor-facing demo. This is depth, not volume.
 
 ---
 
@@ -104,7 +105,7 @@ What the completed project demonstrates: exact recovery proven on every three-sh
 | D2 | **Evaluation points.** The paper says keys K ∈ [0,255] and uses x = K, K+1, … K+n−1. x = 0 makes a share equal to the secret constant c, and K+n−1 may exceed 255. | We draw K ∈ [1, 256−n] so all x_i ∈ [1,255], distinct, non-zero. |
 | D3 | **Ramp-scheme leakage.** Two secret symbols (c, a₁) are carried by a degree-(r−1) polynomial with only r−2 random coefficients. With r−1 shares and the evaluation points known, the number of candidate (c, a₁) pairs shrinks from 65 536 to 256. The paper states r−1 shares reveal nothing. | The evaluation points depend on the secret key K, so an attacker without K cannot exploit this. Report it as an observation in the report; do not change the scheme. |
 | D4 | Table III average (5.2288 bpp) differs from Table IV / Fig. 12 value for the proposed scheme (5.6007 bpp, which appears to be the median over 2 000 images). Also the text says "ten test images" while only eight are shown. | We use the 8 shown images and compare against Table III. |
-| D5 | RCAN configuration is stated twice with different values (5 groups/5 blocks in §II, 6 groups/10 blocks in §IV). | Not applicable (we do not use RCAN); mention in report. |
+| D5 | RCAN configuration is stated twice with different values (5 groups/5 blocks in §II, 6 groups/10 blocks in §IV). | The optional RCAN-style ablation uses the §II 5-group/5-block description and records its artifact hash; it is not trained RCAN. |
 | D6 | Equations (12)–(14) use "a_k−1" notation inconsistent with the polynomial degree r−1. | We implement the polynomial as in Eq. (2). |
 | D7 | Lossless recovery with a neural predictor requires **bit-identical** network output on sender and receiver. The paper does not discuss floating-point nondeterminism across devices. | Our integer predictors avoid the issue. Mention as a practical limitation of the original design. |
 
@@ -132,8 +133,10 @@ pss/
   gf256.py         # field arithmetic
   keys.py          # KeyBundle from master seed
   sharing.py       # (k,n) pair sharing and recovery over GF(256)
-  msa.py           # rectangle cut, pack/unpack, inpaint, stream cipher
-  predictor.py     # bilinear, edge_directed, (ablation) cv2_bicubic
+  msa.py           # rectangle cut, pack/unpack, backend selection, stream cipher
+  inpainting.py    # Telea and contextual multi-scale inpainting
+  deep_models.py   # RCAN-style fixed-point backend and metadata
+  predictor.py     # bilinear, edge_directed, MED, bicubic, RCAN-style
   huffman.py       # build code, matching rules, encode/decode residual
   embed.py         # expand, embed payload, extract, data hider
   pipeline.py      # owner_encode(), recover_stage1/2/3()
@@ -209,7 +212,10 @@ Use:
 Input: `rect = (top, left, height, width)`, half-open region rows `[top, top+height)`, cols `[left, left+width)`. Must lie inside the image and have area ≥ 1.
 
 1. `A = img[rect]` (the sensitive pixels).
-2. Build masked image: `mask = 255` inside rect else 0; `masked = cv2.inpaint(img, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)`. Pixels outside the rectangle must be unchanged (assert it).
+2. Build masked image using the selected backend. The default is `telea`: `cv2.inpaint(img, mask,
+   inpaintRadius=3, flags=cv2.INPAINT_TELEA)`. The optional `contextual` backend performs
+   deterministic coarse-to-fine context propagation followed by Navier–Stokes refinement. Pixels
+   outside the rectangle must be unchanged for both backends (assert it).
 3. Pack: `A_bytes = header(8 bytes: top,left,bottom,right as 4 big-endian uint16, exclusive bottom/right) ‖ A.flatten()`. If the length is odd, append one zero byte. (Replaces the paper's "2·log₂(MN) coordinate bits".)
 4. Stream-cipher encrypt: `A_enc = A_bytes XOR keystream(K_sc, len)` using `np.random.default_rng(K_sc).integers(0,256,len)`.
 5. Pair as `A_enc.reshape(-1,2)`.
@@ -226,6 +232,11 @@ Stage-3 reverse: decrypt with `K_sc`, parse header, **validate** the rectangle (
 - Residual sequence **Ē**: for each 2×2 block in raster block order, the three values at positions (0,1), (1,0), (1,1). Length 3MN/4. Implementation: view as `(M/2, 2, N/2, 2)`, transpose to `(M/2, N/2, 2, 2)`, reshape `(-1, 4)`, take columns 1..3 and flatten.
 
 **All predictors must use integer arithmetic only** (shifts, integer division) so sender and receiver agree bit for bit. Edge handling: replicate the last row/column of L.
+
+`rcan_style` is an optional fixed-point ablation. It uses the architecture-inspired configuration
+recorded in `pss.deep_models.RCAN_STYLE_CONFIG` (five residual groups, five refinement blocks per
+group, long/short skip behaviour, and a content-dependent gate). It is deterministic and preserves
+the LR anchor pixels. It is not the original trained RCAN network.
 
 Let `a=L[i,j]`, `b=L[i,j+1]` (right), `c=L[i+1,j]` (down), `e=L[i+1,j+1]` (diagonal), with replication at borders.
 
@@ -355,10 +366,12 @@ algorithm layer rather than duplicating its logic. The dashboard adds an interac
 automatic predictor evidence, integrity status, resilient recovery, analysis charts, and a Research
 Summary view.
 
-Sidebar/configuration: master seed, predictor choice (`bilinear` / `edge_directed` / `med` / `auto`), MSA mode (`manual` / `auto_texture` / `auto_edge`), and (r, n) fixed at (3, 4).
+Sidebar/configuration: master seed, predictor choice (`bilinear` / `edge_directed` / `med` /
+`rcan_style` / `auto`), inpainting backend (`telea` / `contextual`), MSA mode (`manual` /
+`auto_texture` / `auto_edge`), and (r, n) fixed at (3, 4).
 
 Tabs:
-1. **Owner:** upload a grayscale image (auto-converted to 512×512), draw/move/resize the MSA rectangle or select an adaptive MSA mode, choose a predictor or automatic predictor selection, and create four authenticated shares. Shows the masked image, the four final shares, predictor evidence, `bpp_paper`, `bpp_free`, and timings.
+1. **Owner:** upload a grayscale image (auto-converted to 512×512), draw/move/resize the MSA rectangle or select an adaptive MSA mode, choose a predictor or automatic predictor selection, choose Telea or contextual inpainting, and create four authenticated shares. Shows the masked image, the four final shares, predictor evidence, `bpp_paper`, `bpp_free`, and timings.
 2. **Data hider:** pick a share, type a text payload, embed it in the independent free room, and extract it again with CRC status.
 3. **Receiver:** verify share integrity, automatically exclude invalid shares, and recover Stage 1, Stage 2, or Stage 3 from the first valid three-share subset. Fewer than three valid shares produces a clear rejection.
 
@@ -371,9 +384,9 @@ Run the fallback with `streamlit run app.py`. Run the primary UI with
 integration tests and the UI smoke tests cover the public owner-to-receiver flow.
 
 ### 6.2 Neural networks
-The paper's RCAN and GICA are **not** used: training or running them in the original short project schedule is not feasible, and exact recovery would require bit-identical network output on sender and receiver, which is fragile across machines and library versions. The completed project instead uses deterministic integer predictors, adaptive predictor selection, and Telea inpainting.
+The original trained RCAN and GICA weights are not bundled. The completed project keeps deterministic integer predictors and Telea inpainting as the reliable baseline, and adds optional contextual and RCAN-style fixed-point backends for a deeper paper-aligned ablation. Exact recovery remains safe because both optional backends are deterministic and run identically at encode and decode time.
 
-**Tier 3 stretch (only if everything else is finished):** a tiny CNN predictor (for example 3 convolution layers, about 10 k parameters, trained on 64×64 crops for about 20 minutes on CPU), used **only** to compare residual entropy against the integer predictors in E8. It must not be used inside the lossless pipeline unless its output is made integer-exact with fixed-point arithmetic, which is out of scope. Present it as an exploratory result, not as a reproduction of RCAN. In the report, list a fully integer, deterministic neural predictor as future work.
+**Fidelity track:** the repository includes a deterministic contextual multi-scale inpainting backend and an RCAN-style fixed-point predictor for E18. They are reproducible architecture-inspired ablations, not the paper's trained GICA/RCAN networks.
 
 ---
 
@@ -421,8 +434,8 @@ All tests use fixed seeds. Use 64×64 crops for speed; at least one test on a fu
 
 ## 8. Experiments (`experiments/run_all.py`)
 
-Tier 1 = E1–E6 (must). Tier 2 = E7–E11 (baseline evaluation). Tier 3 = E12–E16
-(project extensions). Master seed fixed and logged. Each experiment writes `results/E?.csv` and
+Tier 1 = E1–E6 (must). Tier 2 = E7–E11 (baseline evaluation). Tier 3 = E12–E17
+(project extensions and final evaluation). Master seed fixed and logged. Each experiment writes `results/E?.csv` and
 figures to `figures/`.
 
 | ID | Experiment | Output |
@@ -443,6 +456,8 @@ figures to `figures/`.
 | **E14** (Tier 3) | Automatic predictor selection based on compressed residual length | table |
 | **E15** (Tier 3) | All four three-share threshold combinations across Stages 1–3 | table |
 | **E16** (Tier 3) | Recovery and data-hider attack matrix | table |
+| **E17** (Tier 3) | Final baseline-versus-extension comparison using compression, embedding rate, PSNR, SSIM, MAE, exact recovery, and tamper recovery | table + generated report |
+| **E18** (Fidelity track) | Telea versus contextual inpainting and integer versus RCAN-style fixed-point prediction; record residual size, masked quality, determinism, model hash, and exact recovery | targeted comparison table |
 
 **Quote table** (labelled "from He et al. 2026, Table III, not re-run"), average embedding rate in bpp: Wu et al. 1.8403; Chen et al. [30] 0.5000; Chen et al. [31] 3.5000; Hua et al. [32] 2.3372; [32] full size 4.3072; Yu et al. 2.7383; Chen & Xu 3.3319; Qin et al. 1.0807; Hua et al. [36] 1.7401; PSS-DRDHEI (paper) 5.2288.
 
@@ -454,6 +469,9 @@ Expectations (not promises): smoother images (Airplane, Man) give higher bpp tha
 
 - **PSNR** = 10·log₁₀(255² / MSE); exact recovery → report "∞ (exact)".
 - **SSIM**: `skimage.metrics.structural_similarity`.
+- **MSE** = mean squared pixel error.
+- **MAE** = mean absolute pixel error.
+- **MSA-region quality** uses the selected `(top, left, height, width)` rectangle only.
 - **Entropy** H = −Σ p_i log₂ p_i over 256 levels (ideal 8).
 - **Adjacent correlation**: sample 10 000 random horizontally (or vertically) adjacent pixel pairs, Pearson correlation; report absolute value.
 - **NPCR** = (1/MN) Σ D(m,n) × 100 %, D = 1 if pixels differ. **UACI** = (1/MN) Σ |I − I*| / 255 × 100 %.

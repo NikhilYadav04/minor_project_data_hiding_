@@ -8,6 +8,7 @@ import numpy as np
 from .config import N, R, validate_image_shape
 from .embed import embed_core, extract_core, expand_share, extract_shared
 from .auth import find_valid_shares, require_valid_share, stamp_share
+from .deep_models import model_metadata
 from .exceptions import InsufficientSharesError, InvalidKeyError
 from .huffman import compress_residuals, decompress_residuals, pack_bits, pad_bits
 from .keys import KeyBundle
@@ -64,6 +65,7 @@ def owner_encode(
     r: int = R,
     n: int = N,
     msa_mode: str = "manual",
+    inpainting_method: str = "telea",
 ) -> OwnerOutput:
     image = np.asarray(img, dtype=np.uint8)
     validate_image_shape(image.shape)
@@ -81,7 +83,7 @@ def owner_encode(
     else:
         raise ValueError("msa_mode must be 'manual', 'auto_texture', or 'auto_edge'")
     start = time.perf_counter()
-    msa = prepare_msa(image, selected_rect, keys.stream_seed("K_sc"))
+    msa = prepare_msa(image, selected_rect, keys.stream_seed("K_sc"), inpainting_method)
     timings["t_inpaint"] = time.perf_counter() - start
 
     requested_method = method
@@ -145,6 +147,9 @@ def owner_encode(
             "predictor_candidates": predictor_candidates,
             "seed": keys.master_seed,
             "msa_mode": msa_mode,
+            "inpainting_method": inpainting_method,
+            "predictor_backend": "integer" if method in {"bilinear", "edge_directed", "med"} else "rcan_style_fixed_point" if method in {"rcan_style", "rcan_lite"} else "adaptive_integer",
+            "model_metadata": model_metadata() if method in {"rcan_style", "rcan_lite"} else None,
             "msa_top": -1 if selected_rect is None else selected_rect[0],
             "msa_left": -1 if selected_rect is None else selected_rect[1],
             "msa_height": 0 if selected_rect is None else selected_rect[2],

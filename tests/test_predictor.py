@@ -5,7 +5,7 @@ from pss.predictor import get_lr, predict, rebuild_residual, residual, residual_
 
 def test_predictors_preserve_lr_and_constant():
     low = np.full((32, 32), 128, dtype=np.uint8)
-    for method in ("bilinear", "edge_directed", "med"):
+    for method in ("bilinear", "edge_directed", "med", "rcan_style"):
         high = predict(low, method)
         assert high.dtype == np.uint8
         assert np.array_equal(high[0::2, 0::2], low)
@@ -24,5 +24,13 @@ def test_med_is_deterministic_and_preserves_lr(image64):
     low = get_lr(image64)
     first = predict(low, "med")
     second = predict(low, "med")
+    assert np.array_equal(first, second)
+    assert np.array_equal(first[0::2, 0::2], low)
+
+
+def test_rcan_style_is_deterministic_and_preserves_lr(image64):
+    low = get_lr(image64)
+    first = predict(low, "rcan_style")
+    second = predict(low, "rcan_style")
     assert np.array_equal(first, second)
     assert np.array_equal(first[0::2, 0::2], low)
